@@ -1,0 +1,7 @@
+{
+    "editor.wordWrap": "on",
+    "gitlens.currentLine.enabled": false,
+    "rust-analyzer.debug.buildBeforeRestart": false,
+    "debug.allowBreakpointsEverywhere": true,
+    "git.allowForcePush": true
+}

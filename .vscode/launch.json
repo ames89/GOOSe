@@ -1,0 +1,35 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug compress",
+            "program": "${workspaceFolder}/compressor/target/debug/compressor",
+            "args": [
+                "-c",
+                "--entrada",
+                "${workspaceFolder}/compressor/entrada1.bin",
+                "--salida",
+                "${workspaceFolder}/compressor/salida1.rle"
+            ],
+            "cwd": "${workspaceFolder}/compressor"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug decompress",
+            "program": "${workspaceFolder}/compressor/target/debug/compressor",
+            "args": [
+                "--entrada",
+                "${workspaceFolder}/compressor/entrada2.rle",
+                "--salida",
+                "${workspaceFolder}/compressor/salida2.bin"
+            ],
+            "cwd": "${workspaceFolder}/compressor"
+        }
+    ]
+}
