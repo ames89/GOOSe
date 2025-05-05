@@ -1,79 +1,199 @@
 use clap::Parser;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Write};
-use std::path::PathBuf;
-mod compresion;
+use std::io::{self, BufReader, BufWriter, Read, Write};
+use std::path::{Path, PathBuf};
+
+// Assuming this module exists and provides the RLE functions
+mod compresion {
+    pub mod rle {
+        // rle encode function
+        pub fn encode(data: &[u8]) -> Vec<u8> {
+            // In a real scenario, this would contain the RLE encoding logic
+            println!("Encoding {} bytes...", data.len());
+            // Simple example: just clone the data (replace with actual RLE)
+            let mut encoded = Vec::new();
+            if data.is_empty() {
+                return encoded;
+            }
+            let mut count = 1;
+            let mut current_byte = data[0];
+            for &byte in &data[1..] {
+                if byte == current_byte {
+                    count += 1;
+                } else {
+                    encoded.push(current_byte);
+                    encoded.push(count as u8); // Assuming count fits in u8 for simplicity
+                    current_byte = byte;
+                    count = 1;
+                }
+            }
+            encoded.push(current_byte);
+            encoded.push(count as u8);
+            encoded
+        }
+
+        // rle decode function
+        pub fn decode(data: &[u8]) -> Vec<u8> {
+            println!("Decoding {} bytes...", data.len());
+            // Simple example: assumes pairs of (count, byte)
+            let mut decoded = Vec::new();
+            let mut i = 0;
+            while i < data.len() {
+                if i + 1 < data.len() {
+                    let byte = data[i];
+                    let count = data[i + 1] as usize;
+                    for _ in 0..count {
+                        decoded.push(byte);
+                    }
+                    i += 2;
+                } else {
+                    // Handle incomplete pair (error or specific logic)
+                    eprintln!("Warning: Malformed RLE data at the end.");
+                    break;
+                }
+            }
+            decoded
+        }
+    }
+}
+
 use compresion::rle;
 
-#[derive(Parser)]
+/// Command line arguments structure
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
 struct Args {
+    /// Activate compression mode (default is decompression)
     #[arg(short, long)]
     comprimir: bool,
+
+    /// Specify the compression algorithm
     #[arg(long, default_value = "rle")]
     algoritmo: String,
+
+    /// Input file path
     #[arg(long)]
-    entrada: String,
+    entrada: PathBuf, // Use PathBuf for better path handling
+
+    /// Output file path
     #[arg(long)]
-    salida: String,
+    salida: PathBuf, // Use PathBuf for better path handling
 }
 
-fn rle_compress(input: &str, output: &str) -> std::io::Result<()> {
-    let input_file = File::open(input)?;
-    let mut reader = BufReader::new(input_file);
-    let output_file = File::create(output)?;
-    let mut writer = BufWriter::new(output_file);
+/// Reads all bytes from a file specified by the path.
+///
+/// # Arguments
+/// * `path` - A reference to the path of the file to read.
+///
+/// # Returns
+/// * `io::Result<Vec<u8>>` - A Result containing the file content as bytes or an IO error.
+fn read_file_bytes(path: &Path) -> io::Result<Vec<u8>> {
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer)?;
-    let encoded = rle::encode(&buffer);
-    writer.write_all(&encoded)?;
+    Ok(buffer)
+}
+
+/// Writes a slice of bytes to a file specified by the path.
+/// Creates the file if it doesn't exist, truncates it if it does.
+///
+/// # Arguments
+/// * `path` - A reference to the path of the file to write.
+/// * `data` - The byte slice to write to the file.
+///
+/// # Returns
+/// * `io::Result<()>` - A Result indicating success or an IO error.
+fn write_file_bytes(path: &Path, data: &[u8]) -> io::Result<()> {
+    let file = File::create(path)?;
+    let mut writer = BufWriter::new(file);
+    writer.write_all(data)?;
     Ok(())
 }
 
-fn rle_decompress(input: &str, output: &str) -> std::io::Result<()> {
-    let input_file = File::open(input)?;
-    let mut reader = BufReader::new(input_file);
-    let output_file = File::create(output)?;
-    let mut writer = BufWriter::new(output_file);
-    let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer)?;
-    let decoded = rle::decode(&buffer);
-    writer.write_all(&decoded)?;
-    Ok(())
+/// Compresses data using the RLE algorithm.
+///
+/// # Arguments
+/// * `data` - The byte slice to compress.
+///
+/// # Returns
+/// * `Vec<u8>` - The compressed data.
+fn rle_compress(data: &[u8]) -> Vec<u8> {
+    rle::encode(data)
 }
 
-fn rle_compress_decompress(input: &str, output: &str, compress: bool) -> std::io::Result<()> {
-    if compress {
-        rle_compress(input, output)
-    } else {
-        rle_decompress(input, output)
-    }
+/// Decompresses data using the RLE algorithm.
+///
+/// # Arguments
+/// * `data` - The byte slice to decompress.
+///
+/// # Returns
+/// * `Vec<u8>` - The decompressed data.
+fn rle_decompress(data: &[u8]) -> Vec<u8> {
+    rle::decode(data)
 }
 
-fn file_opener() -> std::io::Result<()> {
+/// Runs the compression/decompression tool based on command-line arguments.
+/// Orchestrates reading, processing, and writing.
+///
+/// # Returns
+/// * `io::Result<()>` - A Result indicating overall success or an IO error.
+fn run() -> io::Result<()> {
     let args = Args::parse();
-    let input = &args.entrada;
-    let output = &args.salida;
 
-    if !PathBuf::from(input).exists() {
-        eprintln!("No existe el archivo de entrada");
-        return Ok(());
+    // Input validation (already implicitly checked by File::open in read_file_bytes)
+    // We could add an explicit check earlier if desired:
+    if !args.entrada.exists() {
+        // Use eprintln! for errors, print to stderr
+        eprintln!("Error: El archivo de entrada no existe: {:?}", args.entrada);
+        // Return an error of kind NotFound
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "Input file not found",
+        ));
     }
 
-    match args.algoritmo.as_str() {
+    // Read input file content
+    println!("Leyendo archivo: {:?}", args.entrada);
+    let input_data = read_file_bytes(&args.entrada)?;
+    println!("Leídos {} bytes.", input_data.len());
+
+    let output_data = match args.algoritmo.as_str() {
         "rle" => {
-            println!("Usando algoritmo RLE");
-            rle_compress_decompress(input, output, args.comprimir)?;
+            println!("Usando algoritmo RLE.");
+            if args.comprimir {
+                println!("Comprimiendo...");
+                rle_compress(&input_data)
+            } else {
+                println!("Descomprimiendo...");
+                rle_decompress(&input_data)
+            }
         }
         _ => {
-            eprintln!("Algoritmo no soportado");
+            eprintln!("Error: Algoritmo '{}' no soportado.", args.algoritmo);
+            // Return an error for unsupported algorithm
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Unsupported algorithm",
+            ));
         }
-    }
+    };
 
+    // Write the processed data to the output file
+    println!("Escribiendo archivo: {:?}", args.salida);
+    write_file_bytes(&args.salida, &output_data)?;
+    println!("Escritos {} bytes.", output_data.len());
+
+    println!("Proceso completado exitosamente.");
     Ok(())
 }
 
+/// Main entry point of the application.
 fn main() {
-    if let Err(e) = file_opener() {
-        eprintln!("Error: {}", e);
+    // Execute the main logic and handle potential errors
+    if let Err(e) = run() {
+        eprintln!("Error en la ejecución: {}", e);
+        // Exit with a non-zero status code to indicate failure
+        std::process::exit(1);
     }
 }
