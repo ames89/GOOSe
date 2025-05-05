@@ -9,8 +9,6 @@ use compresion::rle;
 struct Args {
     #[arg(short, long)]
     comprimir: bool,
-    // #[arg(short, long)]
-    // descomprimir: bool,
     #[arg(long, default_value = "rle")]
     algoritmo: String,
     #[arg(long)]
@@ -54,7 +52,6 @@ fn rle_compress_decompress(input: String, output: String, compress: bool) -> std
     }
 }
 
-
 fn file_opener() -> Result<(), std::io::Error> {
     let args = Args::parse();
     let _input: String = args.entrada;
@@ -64,7 +61,15 @@ fn file_opener() -> Result<(), std::io::Error> {
         println!("No existe el archivo de entrada");
         return Ok(());
     }
-    rle_compress_decompress(_input.clone(), _output.clone(), args.comprimir)?;
+    match args.algoritmo.as_str() {
+        "rle" => {
+            println!("Usando algoritmo RLE");
+            rle_compress_decompress(_input.clone(), _output.clone(), args.comprimir)?;
+        }
+        _ => {
+            return Ok(());
+        }
+    }
 
     Ok(())
 }
